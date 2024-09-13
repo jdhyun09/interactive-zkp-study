@@ -1168,12 +1168,22 @@ def groth_verify():
         else: sigmas = sigmas_search[0]["sigmas"]
 
         # public_gates_index = session.get("public_gates")
-        public_gates_search = DB.search(DATA.type == "groth.verifying.public_gates")
+        public_gates_search = DB.search(DATA.type == "groth.setup.public_gates")
+        print("public_gates_search : ", public_gates_search)
+
         if public_gates_search == []: public_gates_index = None 
         else: public_gates_index = public_gates_search[0]["public_gates"]
 
-        r_values = session.get("r_values")
-        public_gates = [r_values[i] for i in public_gates_index]
+
+        print("public_gates_index : ", public_gates_index)
+        r_values_search = DB.search(DATA.type == "groth.proving.r_values")
+        if r_values_search: r_values = r_values_search[0]["r_values"]
+        else: r_values = None
+        #r_values = session.get("r_values")
+
+        print("r_values : ", r_values)
+
+        public_gates = [(i, r_values[i]) for i in public_gates_index] ##Check Here
         if user_code:
             def turn_g2_fq2(g2p_int):
                 g2p0 = bn128.FQ2(g2p_int[0])

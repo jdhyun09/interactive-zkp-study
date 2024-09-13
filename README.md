@@ -6,7 +6,8 @@
 ## Install & Run
 ```shell
 #Install python flask
-virtualenv .venv
+#pip3 install virtualenv
+python3 -m virtualenv .venv
 . .venv/bin/activate
 (.venv) pip install -r requirements.txt
 #Run flask
