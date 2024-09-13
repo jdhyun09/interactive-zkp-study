@@ -24,11 +24,7 @@
 <section>
     <h4>2.Verify</h4>
     <p>
-        <button type="button" onclick="groth_verify()" class="btn btn-primary">
-            <form action="{{url_for("groth_verify")}}" method="post" id="groth-verify-form">
-                Verify
-            </form>
-        </button>
+        <button id="verifyButton" onclick="verifyGroth()" class="btn btn-primary">Verify</button>
     </p>
     <p>
         <table class="table table-bordered">
@@ -46,7 +42,7 @@
                     <td>
                         LHS fomula
                     </td>
-                    <td>LHS value</td>
+                    <td id="lhsValue"></td>
                 </tr>
 
                 <!-- RHS -->
@@ -55,11 +51,48 @@
                     <td>
                         RHS fomula
                     </td>
-                    <td>RHS value</td>
+                    <td id="rhsValue"></td>
                 </tr>
             </tbody>
         </table>
     </p>
-    <p>Is LHS == RHS ? True / False</p>
+    <p id="processingMessage" style="display: none;">Processing...</p>
+    <p id="verificationStatus"></p>
 </section>
+
+<script>
+    function verifyGroth() {
+        const button = document.getElementById('verifyButton');
+        const processingMessage = document.getElementById('processingMessage');
+        const verificationStatus = document.getElementById('verificationStatus');
+
+        verificationStatus.textContent = '';
+
+        button.disabled = true;
+        processingMessage.style.display = 'block';
+
+        fetch("{{ url_for('groth_verify') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            processingMessage.style.display = 'none';
+
+            document.getElementById('lhsValue').textContent = data.lhs;
+            document.getElementById('rhsValue').textContent = data.rhs;
+            document.getElementById('verificationStatus').textContent = `Is LHS == RHS ? ${data.result}`;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred during verification.');
+        })
+        .finally(() => {
+            button.disabled = false;
+            processingMessage.style.display = 'none';
+        });
+    }
+    </script>
 {% endblock %}

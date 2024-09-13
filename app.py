@@ -1,4 +1,4 @@
-from flask import Flask, session, redirect, url_for
+from flask import Flask, jsonify, session, redirect, url_for
 from flask import render_template
 from flask import request
 
@@ -1232,7 +1232,7 @@ def groth_verify():
             verify_result = verify(proof_a, proof_b, proof_c, sigma1_1, sigma1_3, sigma2_1, public_gates)
             print(verify_result)
             
-            return redirect(url_for('main_verifying'))
+            return jsonify({"lhs": str("Todo"), "rhs": str("Todo"), 'result': str(verify_result)})
     else:
         return redirect(url_for('main_verifying'))
 
