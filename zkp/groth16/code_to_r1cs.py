@@ -358,6 +358,10 @@ def qeval(x):
     return y + x + 5
     """)
 
+# flatcode
+# [['*', 'sym_1', 'x', 'x'], ['*', 'y', 'sym_1', 'x'], ['*', 'z', 'y', 'x'], ['assert', 'z', 'y'], ['+', 'sym_2', 'y', 'x'], ['+', '~out', 'sym_2', 5]]
+
+
 
 # Assign(targets=[Name(id='y', ctx=Store())], value=BinOp(left=Name(id='x', ctx=Load()), op=Pow(), right=Constant(value=3)))
 #
@@ -369,21 +373,3 @@ def qeval(x):
 # why op(s)?: 비교 연산자 여러개 나올 수 있음 (e.g., y < x <= z, y == x == z)
 # 우선 Eq()하나만 사용할 수 있게 제한.
 # Return(value=BinOp(left=BinOp(left=Name(id='y', ctx=Load()), op=Add(), right=Name(id='x', ctx=Load())), op=Add(), right=Constant(value=5)))
-
-
-r, A, B, C = code_to_r1cs_with_inputs(
-    """
-def qeval(x):
-    y = x**3
-    z = y * x
-    assert z == 81
-    return y + x + 5
-    """,[3])
-print('r')
-print(r)
-print('A')
-for x in A: print(x)
-print('B')
-for x in B: print(x)
-print('C')
-for x in C: print(x)
