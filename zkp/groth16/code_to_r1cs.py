@@ -15,6 +15,7 @@ def parse(code):
 # variable assignments (variables are immutable;
 # can only be set once) and a return statement at the end
 def extract_inputs_and_body(code):
+    print("code : ", code)
     o = []
     if len(code) != 1 or not isinstance(code[0], ast.FunctionDef):
         raise Exception("Expecting function declaration")
@@ -24,21 +25,28 @@ def extract_inputs_and_body(code):
         if isinstance(arg, ast.arg):
             assert isinstance(arg.arg, str)
             inputs.append(arg.arg)
+            print("arg.arg : ", arg.arg)
         elif isinstance(arg, ast.Name):
             inputs.append(arg.id)
+            print("arg.id : ", arg.id)
         else:
             raise Exception("Invalid arg: %r" % ast.dump(arg))
+        
     # Gather the body
     body = []
     returned = False
     for c in code[0].body:
-        if not isinstance(c, (ast.Assign, ast.Return)):
+        print("c : ", ast.dump(c))
+        
+        if not isinstance(c, (ast.Assign, ast.Return, ast.Assert)):
             raise Exception("Expected variable assignment or return")
         if returned:
             raise Exception("Cannot do stuff after a return statement")
         if isinstance(c, ast.Return):
             returned = True
         body.append(c)
+        #print("c.value : ", ast.dump(c.value))
+
     return inputs, body
 
 # Convert a body with potentially complex expressions into
@@ -58,14 +66,37 @@ def mksymbol():
 def initialize_symbol():
     next_symbol[0] = 0
 
+# Get the value of a node
+def get_value(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    elif isinstance(node, ast.Constant):
+        return node.value
+    else:
+        raise Exception("Assert comparison must be between variables or constants")
+
 # "Flatten" a single statement into a list of simple statements.
 # First extract the target variable, then flatten the expression
-def flatten_stmt(stmt):
+def flatten_stmt(stmt): #@Todo: Assert 처리 추가
     # Get target variable
     if isinstance(stmt, ast.Assign):
         assert len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name)
         target = stmt.targets[0].id
-    elif isinstance(stmt, ast.Return):
+
+    elif isinstance(stmt, ast.Assert):
+        assert isinstance(stmt.test, ast.Compare) and len(stmt.test.ops) == 1 and isinstance(stmt.test.ops[0], ast.Eq), "Only '==' comparison is allowed in assert statements"
+
+        left = get_value(stmt.test.left)
+        right = get_value(stmt.test.comparators[0])
+
+        # 두 값이 모두 상수인 경우 미리 검사
+        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+            if left != right:
+                raise AssertionError(f"Assert condition not satisfied: {left} != {right}")
+        
+        return [['assert', left, right]] #@Todo: assert -> '==' ?
+
+    elif isinstance(stmt, ast.Return): #@Todo: 고정된 ~out 수정
         target = '~out'
     # Get inner content
     return flatten_expr(target, stmt.value)
@@ -111,8 +142,12 @@ def flatten_expr(target, expr):
                     nxt = target if i == expr.right.n - 1 else mksymbol()
                     o.append(['*', nxt, latest, base])
                 return o
+        
+        elif isinstance(expr, ast.Compare):
+            raise Exception("Comparisons are only allowed in assert statements")
+
         else:
-            raise Exception("Bad operation: " % ast.dump(stmt.op))
+            raise Exception("Bad operation: %r" % ast.dump(expr.op))
         # If the subexpression is a variable or a number, then include it directly
         if isinstance(expr.left, (ast.Name, ast.Num)):
             var1 = expr.left.id if isinstance(expr.left, ast.Name) else expr.left.n
@@ -134,7 +169,7 @@ def flatten_expr(target, expr):
         # processing for the subexpression if any
         return sub1 + sub2 + [[op, target, var1, var2]]
     else:
-        raise Exception("Unexpected statement value: %r" % stmt.value)
+        raise Exception("Unexpected statement value: %r" % ast.dump(expr.value))
 
 # Adds a variable or number into one of the vectors; if it's a variable
 # then the slot associated with that variable is set to 1, and if it's
@@ -148,8 +183,12 @@ def insert_var(arr, varz, var, used, reverse=False):
         arr[0] += var * (-1 if reverse else 1)
 
 # Maps input, output and intermediate variables to indices
-def get_var_placement(inputs, flatcode):
-    return ['~one'] + [x for x in inputs] + ['~out'] + [c[1] for c in flatcode if c[1] not in inputs and c[1] != '~out']
+def get_var_placement(inputs, flatcode):    #@Todo: 고정된 ~out 수정
+    used_vars = ['~one'] + inputs + ['~out']
+    for c in flatcode:
+        if c[0] != 'assert' and c[1] not in used_vars:
+            used_vars.append(c[1])
+    return used_vars
 
 
 # Convert the flattened code generated above into a rank-1 constraint system
@@ -161,9 +200,11 @@ def flatcode_to_r1cs(inputs, flatcode):
     for x in flatcode:
     # 모든 flatcode를 대상으로 수행. flatcode의 갯수만큼 행의 row갯수(컬럼 높이)가 결정된다.
         a, b, c = [0] * len(varz), [0] * len(varz), [0] * len(varz)
-        if x[1] in used:
-            raise Exception("Variable already used: %r" % x[1])
-        used[x[1]] = True
+        # assert는 이미 used된 변수를 비교하기위해 사용
+        if x[0] != 'assert':
+            if x[1] in used:
+                raise Exception("Variable already used: %r" % x[1])
+            used[x[1]] = True
         # 타겟 자리도 used로 바꾸고 시작
         if x[0] == 'set':
             # a의 타겟 자리에 1을 더하고, 우항(value) 자리를 -1로 바꾼다
@@ -190,6 +231,10 @@ def flatcode_to_r1cs(inputs, flatcode):
             insert_var(c, varz, x[2], used)
             a[varz.index(x[1])] = 1
             insert_var(b, varz, x[3], used)
+        elif x[0] == 'assert':
+            # assert 문 처리
+            insert_var(a, varz, x[1], used)
+            insert_var(b, varz, x[2], used, reverse=True)
         A.append(a)
         B.append(b)
         C.append(c)
@@ -241,6 +286,19 @@ def code_to_r1cs_with_inputs(code, input_vars):
     r = assign_variables(inputs, input_vars, flatcode)
     return r, A, B, C
 
+def code_to_flatcode(code):
+    inputs, body = extract_inputs_and_body(parse(code))
+    
+    print("Inputs")
+    print(inputs)
+    print("Body")
+    print(body)
+
+    flatcode = flatten_body(body)
+    print("flatcode")
+    print(flatcode)
+    return 0
+
 # r, A, B, C = code_to_r1cs_with_inputs("""
 # def qeval(x):
 #     y = x**3
@@ -280,3 +338,52 @@ def code_to_r1cs_with_inputs(code, input_vars):
 # [0, 0, 0, 0, 1, 0]
 # [0, 0, 0, 0, 0, 1]
 # [0, 0, 1, 0, 0, 0]
+
+# code_to_flatcode(
+#     """
+# def qeval(x):
+#     y = x**3
+#     z = y * x
+#     c = y & z
+#     return y + x + 5
+#     """)
+
+
+code_to_flatcode(
+    """
+def qeval(x):
+    y = x**3
+    z = y * x
+    assert z == y
+    return y + x + 5
+    """)
+
+
+# Assign(targets=[Name(id='y', ctx=Store())], value=BinOp(left=Name(id='x', ctx=Load()), op=Pow(), right=Constant(value=3)))
+#
+
+# Assign(targets=[Name(id='z', ctx=Store())], value=BinOp(left=Name(id='y', ctx=Load()), op=Mult(), right=Name(id='x', ctx=Load())))
+#
+
+# Assert(test=Compare(left=Name(id='z', ctx=Load()), ops=[Eq()], comparators=[Constant(value=81)]))
+# why op(s)?: 비교 연산자 여러개 나올 수 있음 (e.g., y < x <= z, y == x == z)
+# 우선 Eq()하나만 사용할 수 있게 제한.
+# Return(value=BinOp(left=BinOp(left=Name(id='y', ctx=Load()), op=Add(), right=Name(id='x', ctx=Load())), op=Add(), right=Constant(value=5)))
+
+
+r, A, B, C = code_to_r1cs_with_inputs(
+    """
+def qeval(x):
+    y = x**3
+    z = y * x
+    assert z == 81
+    return y + x + 5
+    """,[3])
+print('r')
+print(r)
+print('A')
+for x in A: print(x)
+print('B')
+for x in B: print(x)
+print('C')
+for x in C: print(x)
