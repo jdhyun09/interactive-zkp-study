@@ -2,9 +2,9 @@ from py_ecc.fields import bn128_FQ as FQ
 from py_ecc import bn128
 from functools import reduce
 
-from code_to_r1cs import code_to_r1cs_with_inputs
+from zkp.groth16.code_to_r1cs import code_to_r1cs_with_inputs
 
-from qap_creator_lcm import (
+from zkp.groth16.qap_creator_lcm import (
     r1cs_to_qap_times_lcm, 
     create_solution_polynomials, 
     create_divisor_polynomial,
@@ -13,7 +13,7 @@ from qap_creator_lcm import (
     multiply_polys
 )
 
-from poly_utils import (
+from zkp.groth16.poly_utils import (
     # _multiply_polys,
     _add_polys,
     # _subtract_polys,
@@ -33,7 +33,7 @@ from poly_utils import (
     hx_val
 )
 
-from setup import (
+from zkp.groth16.setup import (
     sigma11,
     sigma12,
     sigma13,
@@ -43,18 +43,13 @@ from setup import (
     sigma22
 )
 
-from proving import (
+from zkp.groth16.proving import (
     proof_a,
     proof_b,
-    proof_c,
-    build_rpub_enum
+    proof_c
 )
 
-from verifying import (
-    verify,
-    lhs,
-    rhs
-)
+from zkp.groth16.verifying import verify
 
 g1 = bn128.G1
 g2 = bn128.G2
@@ -68,39 +63,29 @@ class FR(FQ):
     field_modulus = bn128.curve_order
 
 def test_code_to_r1cs():
+#     code = """
+# def qeval(x, z, w):
+#     y = x**3 + z*w
+#     return y + x + 5
+# """
+#    inputs = [3,4,5]
     code = """
 def qeval(x):
     y = x**3
     return y + x + 5
 """
-
-    code2 = """
-def qeval(x, w, z):
-    y = x**3 + w*z
-    return y + x + 5
-"""
     inputs = [3]
 
-    #r, A, B, C  = code_to_r1cs_with_inputs(code, inputs)
+    r, A, B, C  = code_to_r1cs_with_inputs(code, inputs)
 
-    code3 = """
-def qeval(x):
-    y = x**3
-    z = y * x
-    assert z == 81
-    return y + x + 5
-"""
-
-    r, A, B, C  = code_to_r1cs_with_inputs(code3, [3])
-
-    print('r')
-    print(r)
-    print('A')
-    for x in A: print(x)
-    print('B')
-    for x in B: print(x)
-    print('C')
-    for x in C: print(x)
+    # print('r')
+    # print(r)
+    # print('A')
+    # for x in A: print(x)
+    # print('B')
+    # for x in B: print(x)
+    # print('C')
+    # for x in C: print(x)
 
     return r, A, B, C
 
@@ -166,13 +151,13 @@ def test_r1cs_qap_lcm():
     return Ap, Bp, Cp, Z, r
 
 
-def test_setup(pub_r_indexs=None):
+def test_setup():
     # EXAMPLE TOXIC
-    alpha = FR(939138884467)
-    beta = FR(140433499168)
-    gamma = FR(453616200533)
-    delta = FR(167206761118)
-    x_val = FR(70994651299)
+    alpha = FR(3926)
+    beta = FR(3604)
+    gamma = FR(2971)
+    delta = FR(1357)
+    x_val = FR(3721)
 
     # EXAMPLE POLYNOMIAL
     # Ap = [
@@ -216,12 +201,12 @@ def test_setup(pub_r_indexs=None):
     Cx = getFRPoly2D(Cp)
     Zx = getFRPoly1D(Z)
     Rx = getFRPoly1D(R)
-    print("Ax : {}".format(Ax))
-    print("Bx : {}".format(Bx))
-    print("Cx : {}".format(Cx))
-    print("Zx : {}".format(Zx))
-    print("Rx : {}".format(Rx))
-    print("")
+    # print("Ax : {}".format(Ax))
+    # print("Bx : {}".format(Bx))
+    # print("Cx : {}".format(Cx))
+    # print("Zx : {}".format(Zx))
+    # print("Rx : {}".format(Rx))
+    # print("")
 
     # (Ax.R * Bx.R - Cx.R) / Zx = Hx .... r
     Hx, r = hxr(Ax, Bx, Cx, Zx, R)
@@ -238,31 +223,17 @@ def test_setup(pub_r_indexs=None):
     Cx_val = cx_val(Cx, x_val)
     Zx_val = zx_val(Zx, x_val)
 
-    print("Ax_val : {}".format(Ax_val))
-    print("Bx_val : {}".format(Bx_val))
-    print("Cx_val : {}".format(Cx_val))
-    print("Zx_val : {}".format(Zx_val))
-    print("Hx_val : {}".format(Hx_val))
-
     s11 = sigma11(alpha, beta, delta)
     s12 = sigma12(numGates, x_val)
-    s13, VAL = sigma13(numWires, alpha, beta, gamma, Ax_val, Bx_val, Cx_val, pub_r_indexs)
-    s14 = sigma14(numWires, alpha, beta, delta, Ax_val, Bx_val, Cx_val, pub_r_indexs)
+    s13, VAL = sigma13(numWires, alpha, beta, gamma, Ax_val, Bx_val, Cx_val)
+    s14 = sigma14(numWires, alpha, beta, delta, Ax_val, Bx_val, Cx_val)
     s15 = sigma15(numGates, delta, x_val, Zx_val)
     s21 = sigma21(beta, delta, gamma)
     s22 = sigma22(numGates, x_val)
 
-    print("s11 : {}".format(s11))
-    print("s12 : {}".format(s12))
-    print("s13 : {}".format(s13))
-    print("s14 : {}".format(s14))
-    print("s15 : {}".format(s15))
-    print("s21 : {}".format(s21))
-    print("s22 : {}".format(s22))
-    print("VAL : {}".format(VAL))
-
     #TEST1 : r should be zero
     t1 = (reduce((lambda x, y : x*y), r) == 0)
+    # print("r : {}".format(r))
 
     lhs = _multiply_vec_vec(Rx, Ax_val) * _multiply_vec_vec(Rx, Bx_val) - _multiply_vec_vec(Rx, Cx_val)
     rhs = Zx_val * Hx_val
@@ -270,8 +241,8 @@ def test_setup(pub_r_indexs=None):
     #TEST2 : lhs == rhs
     t2 = (lhs == rhs)
 
-    print("TEST1 : r should be 0 => {}".format(t1))
-    print("TEST2 : lhs == rhs => {}".format(t2))
+    print("TEST1 {}".format(t1))
+    print("TEST2 {}".format(t2))
     
     sigmas = [s11, s12, s13, s14, s15, s21, s22]
     sol_polys = [Ax_val, Bx_val, Cx_val, Hx_val, Zx_val]
@@ -281,28 +252,16 @@ def test_setup(pub_r_indexs=None):
 
     return o
 
-def test_proving_and_verifying(pub_r_indexs=None):
+def test_proving_and_verifying():
 
     # EXAMPLE TOXIC
-    # alpha = FR(3926)
-    # beta = FR(3604)
-    # gamma = FR(2971)
-    # delta = FR(1357)
-    # x_val = FR(3721)
+    alpha = FR(3926)
+    beta = FR(3604)
+    gamma = FR(2971)
+    delta = FR(1357)
+    x_val = FR(3721)
 
-    alpha = FR(939138884467)
-    beta = FR(140433499168)
-    gamma = FR(453616200533)
-    delta = FR(167206761118)
-    x_val = FR(70994651299)
-
-    print("x_val : {}".format(x_val))
-    print("alpha : {}".format(alpha))
-    print("beta : {}".format(beta))
-    print("delta : {}".format(delta))
-    print("gamma : {}".format(gamma))
-
-    out = test_setup(pub_r_indexs)
+    out = test_setup()
     
     sigmas = out["sigmas"]
     sol_polys = out["sol_polys"]
@@ -312,9 +271,6 @@ def test_proving_and_verifying(pub_r_indexs=None):
 
     numWires = out["numGatesWires"][1]
     numGates = out["numGatesWires"][0]
-
-    if pub_r_indexs == None:
-        pub_r_indexs = [0, 1] 
 
     Ax = polys[0]
     Bx = polys[1]
@@ -337,99 +293,61 @@ def test_proving_and_verifying(pub_r_indexs=None):
     sigma2_1 = sigmas[5]
     sigma2_2 = sigmas[6]
 
-    print("sigma1_1 : {}".format(sigma1_1))
-    print("type(sigma1_1[0][0]) : {}".format(type(sigma1_1[0][0])))
-    print("sigma1_2 : {}".format(sigma1_2))
-    print("sigma1_3 : {}".format(sigma1_3))
-    print("sigma1_4 : {}".format(sigma1_4))
-    print("sigma1_5 : {}".format(sigma1_5))
-    print("sigma2_1 : {}".format(sigma2_1))
-    print("sigma2_2 : {}".format(sigma2_2))
-
     # EXAMPLE r, s
-    # r = FR(4106)
-    # s = FR(4565)
-
-    r = FR(409383768602)
-    s = FR(680180253574)
+    r = FR(4106)
+    s = FR(4565)
 
     proof_A = proof_a(sigma1_1, sigma1_2, Ax, Rx, r)
     proof_B = proof_b(sigma2_1, sigma2_2, Bx, Rx, s)
-    proof_C = proof_c(sigma1_1, sigma1_2, sigma1_4, sigma1_5, Bx, Rx, Hx, s, r, proof_A, pub_r_indexs)
-
-    print("proof A : {}".format(proof_A))
-    print("proof B : {}".format(proof_B))
-    print("proof C : {}".format(proof_C))
+    proof_C = proof_c(sigma1_1, sigma1_2, sigma1_4, sigma1_5, Bx, Rx, Hx, s, r, proof_A)
 
     def scalar_vec(scalar, vec):
         return [scalar*num for num in vec]
     
     ### PROOF COMPLETENESS CHECK ###
 
-    def proof_completeness(pub_r_indexs=pub_r_indexs):
+    A = alpha + _multiply_vec_vec(Rx, Ax_val) + r*delta
+    B = beta + _multiply_vec_vec(Rx, Bx_val) + s*delta
 
-        A = alpha + _multiply_vec_vec(Rx, Ax_val) + r*delta
-        B = beta + _multiply_vec_vec(Rx, Bx_val) + s*delta
+    C0 = 1/delta 
+    C1 = Rx[1:numWires-1] #vec
+    C1_1 = scalar_vec(beta, Ax_val[1:numWires-1])
+    C1_2 = scalar_vec(alpha, Bx_val[1:numWires-1])
+    C1_3 = Cx_val[1:numWires-1]
+    C2 = Hx_val*Zx_val
+    C3 = A*s + B*r - r*s*delta
 
-        C0 = 1/delta 
+    C1112 = _add_polys(C1_1, C1_2) # vec
+    C111213 = _add_polys(C1112, C1_3) # vec
+    C1111213 = _multiply_vec_vec(C1, C111213) #num
 
-        #delete specific index element in pub_r_indexs
-        c1_r = [j for i, j in enumerate(Rx) if i not in pub_r_indexs]
-        c11ax_r = [j for i, j in enumerate(Ax_val) if i not in pub_r_indexs]
-        c12bx_r = [j for i, j in enumerate(Bx_val) if i not in pub_r_indexs]
-        c13cx_r = [j for i, j in enumerate(Cx_val) if i not in pub_r_indexs]
+    C = C0 * (C1111213 + C2) + C3
 
+    lhs = A*B 
 
-        C1 = c1_r #vec
-        C1_1 = scalar_vec(beta, c11ax_r)
-        C1_2 = scalar_vec(alpha, c12bx_r)
-        C1_3 = c13cx_r
+    rpub = [Rx[0], Rx[-1]]
+    valpub = [VAL[0], VAL[-1]]
 
+    rhs = alpha*beta + gamma*_multiply_vec_vec(rpub,valpub) + C*delta
 
-        C2 = Hx_val*Zx_val
-        C3 = A*s + B*r - r*s*delta
-
-        C1112 = _add_polys(C1_1, C1_2) # vec
-        C111213 = _add_polys(C1112, C1_3) # vec
-        C1111213 = _multiply_vec_vec(C1, C111213) #num
-
-        C = C0 * (C1111213 + C2) + C3
-
-        lhs = A*B 
-
-        rpub = [Rx[i] for i in pub_r_indexs]
-        valpub = [VAL[i] for i in pub_r_indexs]
-
-        rhs = alpha*beta + gamma*_multiply_vec_vec(rpub,valpub) + C*delta
-
-        print("#PROOF COMPLETENESS CHECK#")
-        print("rhs : {}".format(rhs))
-        print("lhs : {}".format(lhs))
-        print("rhs == lhs ? : {}".format(rhs == lhs))
-        print("proof A check : {}".format(proof_A == mult(g1, int(A))))
-        print("proof B check : {}".format(proof_B == mult(g2, int(B))))
-        print("proof C check : {}".format(proof_C == mult(g1, int(C))))
-
-    proof_completeness()
+    print("#PROOF COMPLETENESS CHECK#")
+    print("rhs : {}".format(rhs))
+    print("lhs : {}".format(lhs))
+    print("rhs == lhs ? : {}".format(rhs == lhs))
+    print("proof A check : {}".format(proof_A == mult(g1, int(A))))
+    print("proof B check : {}".format(proof_B == mult(g2, int(B))))
+    print("proof C check : {}".format(proof_C == mult(g1, int(C))))
 
     ##verifying##
 
-    rpub_enum = build_rpub_enum(pub_r_indexs, Rx)
-    # print("Rx : {}".format(Rx))
-    # print("rpub_enum : {}".format(rpub_enum))
-
-    very_result = verify(proof_A, proof_B, proof_C, sigma1_1, sigma1_3, sigma2_1, rpub_enum)
+    very_result = verify(numWires, proof_A, proof_B, proof_C, sigma1_1, sigma1_3, sigma2_1, Rx)
 
     print("Verifying ? : {}".format(very_result))
 
     return proof_A, proof_B, proof_C
 
 if __name__ == "__main__":
-    # test_code_to_r1cs()
-    # test_r1cs_qap_lcm()
+    #test_code_to_r1cs()
+    #test_r1cs_qap_lcm()
     # test_setup()
-
-    # test_proving_and_verifying()
-    # test_proving_and_verifying([0,1])
-    # test_proving_and_verifying([0,2])
-    test_proving_and_verifying([0,2])
+    test_proving_and_verifying()

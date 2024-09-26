@@ -234,7 +234,8 @@ def flatcode_to_r1cs(inputs, flatcode):
         elif x[0] == 'assert':
             # assert 문 처리
             insert_var(a, varz, x[1], used)
-            insert_var(b, varz, x[2], used, reverse=True)
+            b[0] = 1
+            insert_var(c, varz, x[2], used)
         A.append(a)
         B.append(b)
         C.append(c)
@@ -349,14 +350,14 @@ def code_to_flatcode(code):
 #     """)
 
 
-code_to_flatcode(
-    """
-def qeval(x):
-    y = x**3
-    z = y * x
-    assert z == y
-    return y + x + 5
-    """)
+# code_to_flatcode(
+#     """
+# def qeval(x):
+#     y = x**3
+#     z = y * x
+#     assert z == 81
+#     return y + x + 5
+#     """)
 
 # flatcode
 # [['*', 'sym_1', 'x', 'x'], ['*', 'y', 'sym_1', 'x'], ['*', 'z', 'y', 'x'], ['assert', 'z', 'y'], ['+', 'sym_2', 'y', 'x'], ['+', '~out', 'sym_2', 5]]
